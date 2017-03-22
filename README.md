@@ -21,7 +21,7 @@ Castle Router attempts to batch as many operations as possible into a single req
 ## How To Use Castle Router
 The basic flow of using the Router by an Akka actor is:
 
-1. Create a request message that the Router (please see blow for all the types of request messages the Router can understand)
+1. Create a request message that the Router (please see below for all the types of request messages the Router can understand)
 1. Send the request to the router
 1. Handle the Router response which is sent to the originating actor as a message
 
