@@ -22,7 +22,7 @@ Castle Router attempts to batch as many operations as possible into a single req
 ## How To Use Castle Router
 The basic flow of using the Router by an Akka actor is:
 
-1. Create a request message that the Router (please see below for all the types of request messages the Router can understand)
+1. Create a request message that the Router (please see below for all the types of request messages) can understand
 1. Send the request to the router
 1. Handle the Router response which is sent to the originating actor as a message
 
@@ -60,7 +60,7 @@ class ExampleActor(val router: RouterRef) extends actor with Logging with Router
         // allow the topic to fill up with some messages
       case FetchData.UnknownTopicOrPartition(failedTopicAndPartition, failedOffset) =>
         // Handle unknown topic and partition, this might be a fatal exception if 
-        // you really expec this topic to exist, or perhaps you can back off and try 
+        // you really expect this topic to exist, or perhaps you can back off and try 
         // getting again later if it might get created later
       case FetchData.OffsetOutOfRange(_, offset) =>
         // Handle offset out of range, for example, query for the latest or earliest offset
@@ -98,7 +98,7 @@ val myActor = system.actorOf(Props(new ExampleActor(routerRef)))
 ```
 
 ### Supported Router request messages
-All of these case classes are in the com.box.castle.router.messages name space:
+All of these case classes are in the `com.box.castle.router.messages` name space:
 
 #### FetchData(topicAndPartition, offset)
 Send this message to the Router to fetch data from Kafka for the given (topic, partition) and offset. The sender will most likely, but is not guaranteed to, 
