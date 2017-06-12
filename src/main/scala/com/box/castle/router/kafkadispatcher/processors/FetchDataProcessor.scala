@@ -6,7 +6,7 @@ import com.box.castle.router.RouterConfig
 import com.box.castle.router.kafkadispatcher.cache.FetchDataProcessorCache
 import com.box.castle.router.kafkadispatcher.messages.{DispatchFetchDataToKafka, FetchDataKafkaResponse, LeaderNotAvailable}
 import com.box.castle.router.kafkadispatcher.{KafkaDispatcherRef, RequestQueue}
-import com.box.castle.router.messages.FetchData
+import com.box.castle.router.messages.{RefreshBrokersAndLeaders, FetchData}
 import com.box.castle.consumer.CastleSimpleConsumer
 import com.box.castle.router.metrics.{TagNames, Metrics, Components}
 import org.slf4s.Logging
@@ -26,7 +26,8 @@ class FetchDataProcessor(kafkaDispatcher: KafkaDispatcherRef,
                          cacheMaxSizeInBytes: Long,
                          routerConfig: RouterConfig,
                          metricsLogger: MetricsLogger)
-  extends QueueProcessor[DispatchFetchDataToKafka, FetchDataKafkaResponse](kafkaDispatcher) with Logging {
+  extends QueueProcessor[DispatchFetchDataToKafka, FetchDataKafkaResponse](
+    kafkaDispatcher, consumer, metricsLogger) with Logging {
 
   require(cacheMaxSizeInBytes > 0, "Max cache size must be greater than 0")
 
@@ -99,7 +100,7 @@ class FetchDataProcessor(kafkaDispatcher: KafkaDispatcherRef,
             processMessages(partitionData.messages, topicAndPartition, requests)
           },
           unexpectedServerError = {
-            log.error(s"MessageFetchProcessor got an 'UnknownError' code back " +
+            log.error(s"FetchDataProcessor got an 'UnknownError' code back " +
               s"from $consumer for: $topicAndPartition, offset: $offset, retrying the request...")
             // We will retry these
             requesters.foreach(r => addToQueue(DispatchFetchDataToKafka(topicAndPartition, offset, r)))
@@ -110,6 +111,7 @@ class FetchDataProcessor(kafkaDispatcher: KafkaDispatcherRef,
               requestInfo.ref ! FetchData.OffsetOutOfRange(topicAndPartition, offset))
           },
           unknownTopicOrPartitionCode = {
+            handleUnknownTopicOrPartitionCode(topicAndPartition)
             requesters.foreach(requestInfo =>
               requestInfo.ref ! FetchData.UnknownTopicOrPartition(topicAndPartition, offset))
           },
@@ -223,10 +225,4 @@ class FetchDataProcessor(kafkaDispatcher: KafkaDispatcherRef,
     cache = cache.setMaxSizeInBytes(cacheSizeInBytes)
   }
 
-  private def count(metricName: String, value: Long = 1): Unit = {
-    metricsLogger.count(Components.KafkaDispatcher,
-      metricName,
-      Map(TagNames.BrokerHost -> consumer.host),
-      value)
-  }
 }

@@ -148,6 +148,11 @@ class Router(dispatcherProxyPoolFactory: KafkaDispatcherProxyPoolFactory,
               // However, we will get a FetchTopicMetadataExpired message and restart the process
               // so all we have to do is just remove this broker from the dispatcher pool
               dispatcherPool.removeBroker(broker)
+              if (dispatcherPool.size == 0) {
+                // If for some reason we end up removing all brokers due to some kind of connectivity issue
+                // we want to make sure we start again from the known brokers list
+                dispatcherPool.updateBrokers(knownBrokers)
+              }
             }
             case RefreshBrokersAndLeaders(requests) => {
               // We don't have to do anything since we are already in the middle of doing

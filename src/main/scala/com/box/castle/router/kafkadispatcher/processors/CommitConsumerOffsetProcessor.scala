@@ -1,6 +1,7 @@
 package com.box.castle.router.kafkadispatcher.processors
 
 import com.box.castle.collections.immutable.LinkedHashMap
+import com.box.castle.metrics.MetricsLogger
 import com.box.castle.router.exceptions.RouterFatalException
 import com.box.castle.router.kafkadispatcher.KafkaDispatcherRef
 import com.box.castle.router.kafkadispatcher.messages.{CommitConsumerOffsetKafkaResponse, DispatchCommitConsumerOffsetToKafka, LeaderNotAvailable}
@@ -18,8 +19,10 @@ import scala.concurrent.ExecutionContext
 
 private[kafkadispatcher] class CommitConsumerOffsetProcessor(
     kafkaDispatcher: KafkaDispatcherRef,
-    consumer: CastleSimpleConsumer)
-  extends QueueProcessor[DispatchCommitConsumerOffsetToKafka, CommitConsumerOffsetKafkaResponse](kafkaDispatcher) with Logging {
+    consumer: CastleSimpleConsumer,
+    metricsLogger: MetricsLogger)
+  extends QueueProcessor[DispatchCommitConsumerOffsetToKafka, CommitConsumerOffsetKafkaResponse](
+    kafkaDispatcher, consumer, metricsLogger) with Logging {
 
   private var correlationId = 0
 
@@ -79,6 +82,8 @@ private[kafkadispatcher] class CommitConsumerOffsetProcessor(
             addToQueue(DispatchCommitConsumerOffsetToKafka(consumerId, topicAndPartition, offsetAndMetadata, requester))
           },
           unknownTopicOrPartitionCode = {
+            handleUnknownTopicOrPartitionCode(topicAndPartition)
+            System.out.println(s"************** is requester null Here ??????? ${requester}")
             requester.ref ! CommitConsumerOffset.UnknownTopicOrPartition(consumerId, topicAndPartition, offsetAndMetadata)
           },
           leaderNotAvailable = {

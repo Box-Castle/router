@@ -1,5 +1,6 @@
 package com.box.castle.router.kafkadispatcher.processors
 
+import com.box.castle.metrics.MetricsLogger
 import com.box.castle.router.kafkadispatcher._
 import com.box.castle.router.kafkadispatcher.messages._
 import com.box.castle.router.messages.{OffsetAndMetadata, FetchOffset}
@@ -15,8 +16,10 @@ import scala.concurrent.ExecutionContext
 
 private[kafkadispatcher]
 class FetchOffsetProcessor(kafkaDispatcher: KafkaDispatcherRef,
-                           consumer: CastleSimpleConsumer)
-  extends QueueProcessor[DispatchFetchOffsetToKafka, FetchOffsetKafkaResponse](kafkaDispatcher) with Logging {
+                           consumer: CastleSimpleConsumer,
+                           metricsLogger: MetricsLogger)
+  extends QueueProcessor[DispatchFetchOffsetToKafka, FetchOffsetKafkaResponse](
+    kafkaDispatcher, consumer, metricsLogger) with Logging {
 
   // We always fetch just one offset
   private val MaxNumOffsets = 1
@@ -50,6 +53,7 @@ class FetchOffsetProcessor(kafkaDispatcher: KafkaDispatcherRef,
             requesters.foreach(r => addToQueue(DispatchFetchOffsetToKafka(offsetType, topicAndPartition, r)))
           },
           unknownTopicOrPartitionCode = {
+            handleUnknownTopicOrPartitionCode(topicAndPartition)
             requesters.foreach(requesterInfo =>
               requesterInfo.ref ! FetchOffset.UnknownTopicOrPartition(offsetType, topicAndPartition))
           },
