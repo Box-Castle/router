@@ -83,7 +83,6 @@ private[kafkadispatcher] class CommitConsumerOffsetProcessor(
           },
           unknownTopicOrPartitionCode = {
             handleUnknownTopicOrPartitionCode(topicAndPartition)
-            System.out.println(s"************** is requester null Here ??????? ${requester}")
             requester.ref ! CommitConsumerOffset.UnknownTopicOrPartition(consumerId, topicAndPartition, offsetAndMetadata)
           },
           leaderNotAvailable = {
