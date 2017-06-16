@@ -7,12 +7,12 @@ import akka.testkit.TestProbe
 import com.box.castle.batch.CastleMessageBatch
 import com.box.castle.router.RouterConfig
 import com.box.castle.router.kafkadispatcher.KafkaDispatcherRef
-import com.box.castle.router.kafkadispatcher.messages.{DispatchFetchDataToKafka, FetchDataKafkaResponse}
-import com.box.castle.router.messages.FetchData
+import com.box.castle.router.kafkadispatcher.messages.{CommitConsumerOffsetKafkaResponse, DispatchFetchDataToKafka, FetchDataKafkaResponse}
+import com.box.castle.router.messages.{RefreshBrokersAndLeaders, OffsetAndMetadata, FetchData}
 import com.box.castle.router.metrics.Metrics
 import com.box.castle.router.mock.{MockMetricsLogger, MockBatchTools, MockActorTools}
 import com.box.castle.consumer.CastleSimpleConsumer
-import kafka.api.{FetchResponse, FetchResponsePartitionData}
+import kafka.api.{OffsetCommitResponse, FetchResponse, FetchResponsePartitionData}
 import kafka.common.{ErrorMapping, TopicAndPartition}
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
@@ -193,6 +193,31 @@ class FetchDataProcessorTest extends Specification with Mockito with MockActorTo
       mockRequesterActorRefWithNonMatchingOffset.expectNoMsg(FiniteDuration(500, TimeUnit.MILLISECONDS))
 
       metricsLogger.getCountFor(Metrics.AvoidedFetches) must_== 1
+    }
+
+    "send a refresh brokers request when unknown topics are encountered" in new actorSystem {
+      val consumer = mock[CastleSimpleConsumer]
+      val kafkaDispatcher = mock[KafkaDispatcherRef]
+      val metricsLogger = new MockMetricsLogger()
+      val fdp = new FetchDataProcessor(kafkaDispatcher, consumer, CacheMaxSizeInBytes, RouterConfig.DefaultConfig, metricsLogger)
+
+      val requestedOffset: Int = 4000
+      val numMessagesInResponse = 20
+
+      val mockFetchResponsePartitionData = mock[FetchResponsePartitionData]
+      mockFetchResponsePartitionData.error returns ErrorMapping.UnknownTopicOrPartitionCode
+      mockFetchResponsePartitionData.messages returns makeMockMessageSet(requestedOffset, numMessagesInResponse, DefaultMessageSize)
+
+      val topicAndPartitionOriginal = TopicAndPartition("Performance", 16)
+
+      val fetchResponse = mock[FetchResponse]
+      fetchResponse.data returns Map(topicAndPartitionOriginal -> mockFetchResponsePartitionData)
+      val mockRequesterActorRefOriginal = TestProbe()
+      val requesterInfoOriginal = RequesterInfo(mockRequesterActorRefOriginal.ref)
+      val requests = Map(topicAndPartitionOriginal -> ((requestedOffset.toLong, Set(requesterInfoOriginal))))
+
+      fdp.processResponse(FetchDataKafkaResponse(fetchResponse, requests))
+      there was one(kafkaDispatcher).!(RefreshBrokersAndLeaders(List.empty))
     }
   }
 }

@@ -1,6 +1,7 @@
 package com.box.castle.router.kafkadispatcher.processors
 
 import akka.actor.Scheduler
+import com.box.castle.metrics.MetricsLogger
 import com.box.castle.router.exceptions.RouterFatalException
 import com.box.castle.router.kafkadispatcher.KafkaDispatcherRef
 import com.box.castle.router.kafkadispatcher.messages.{DispatchFetchTopicMetadataToKafka, InternalTopicMetadataResponse}
@@ -20,8 +21,10 @@ import scala.concurrent.ExecutionContext
 private[kafkadispatcher]
 class FetchTopicMetadataProcessor(kafkaDispatcher: KafkaDispatcherRef,
                                   scheduler: Scheduler,
-                                  consumer: CastleSimpleConsumer)
-  extends QueueProcessor[DispatchFetchTopicMetadataToKafka, InternalTopicMetadataResponse](kafkaDispatcher) with Logging {
+                                  consumer: CastleSimpleConsumer,
+                                  metricsLogger: MetricsLogger)
+  extends QueueProcessor[DispatchFetchTopicMetadataToKafka, InternalTopicMetadataResponse](
+    kafkaDispatcher, consumer, metricsLogger) with Logging {
 
   private val DefaultRetryStrategy = TruncatedBinaryExponentialBackoffStrategy()
 

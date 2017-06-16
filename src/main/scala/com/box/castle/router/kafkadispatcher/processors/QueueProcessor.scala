@@ -2,15 +2,18 @@ package com.box.castle.router.kafkadispatcher.processors
 
 import java.util.concurrent.TimeUnit
 
+import com.box.castle.consumer.CastleSimpleConsumer
 import com.box.castle.consumer.offsetmetadatamanager.OffsetMetadataManagerErrorCodes
+import com.box.castle.metrics.MetricsLogger
 import com.box.castle.router.exceptions.RouterFatalException
 import com.box.castle.router.kafkadispatcher.KafkaDispatcherRef
 import com.box.castle.router.kafkadispatcher.messages.{DispatchToKafka, KafkaBrokerUnreachable, KafkaResponse, UnexpectedFailure}
-import com.box.castle.router.messages.RouterResult
+import com.box.castle.router.messages.{RefreshBrokersAndLeaders, RouterResult}
 import com.box.castle.retry.RetryableFuture
 import com.box.castle.retry.strategies.TruncatedBinaryExponentialBackoffStrategy
+import com.box.castle.router.metrics.{TagNames, Components, Metrics}
 import org.slf4s.Logging
-import kafka.common.ErrorMapping
+import kafka.common.{TopicAndPartition, ErrorMapping}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
@@ -20,7 +23,9 @@ import scala.util.{Failure, Success}
 
 
 abstract class QueueProcessor[T <: DispatchToKafka, T2 <: KafkaResponse]
-    (kafkaDispatcher: KafkaDispatcherRef) extends Logging {
+    (kafkaDispatcher: KafkaDispatcherRef,
+     consumer: CastleSimpleConsumer,
+     metricsLogger: MetricsLogger) extends Logging {
 
   // TODO: Make configurable, maybe
   // We will on average wait about 2 minutes before giving up with this retry strategy
@@ -43,6 +48,23 @@ abstract class QueueProcessor[T <: DispatchToKafka, T2 <: KafkaResponse]
   def addToQueue(request: T): Unit
 
   def processResponse(response: T2)(implicit ec: ExecutionContext): Unit
+
+  def count(metricName: String, value: Long = 1): Unit = {
+    metricsLogger.count(Components.KafkaDispatcher,
+      metricName,
+      Map(TagNames.BrokerHost -> consumer.host),
+      value)
+  }
+
+  def handleUnknownTopicOrPartitionCode(topicAndPartition: TopicAndPartition): Unit = {
+    log.error(s"${this.getClass.getSimpleName} encountered an UnknownTopicOrPartitionCode while " +
+      s"interacting with this broker: ${consumer.brokerInfo} using topic and partition: $topicAndPartition. " +
+      s"This is normal if the replica changes are happening in Kafka, however if you continue to see this message " +
+      s"repeatedly, it may mean one of the clients of the Router is mis-configured and is attempting to get data for " +
+      s"a topic and partition that does not exist.  Refreshing brokers and leaders.")
+    kafkaDispatcher ! RefreshBrokersAndLeaders(List.empty)
+    count(Metrics.UnknownTopicOrPartition)
+  }
 
   protected def async[R](body: => R, onSuccess: (R) => Unit)(implicit ec: ExecutionContext): Unit = {
     RetryableFuture({

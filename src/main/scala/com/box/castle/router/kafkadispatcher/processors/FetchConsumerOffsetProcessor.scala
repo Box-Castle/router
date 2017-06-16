@@ -1,6 +1,7 @@
 package com.box.castle.router.kafkadispatcher.processors
 
 import com.box.castle.collections.immutable.LinkedHashMap
+import com.box.castle.metrics.MetricsLogger
 import com.box.castle.router.kafkadispatcher.KafkaDispatcherRef
 import com.box.castle.router.kafkadispatcher.messages.{DispatchFetchConsumerOffsetToKafka, FetchConsumerOffsetKafkaResponse, LeaderNotAvailable}
 import com.box.castle.router.messages.{OffsetAndMetadata, FetchConsumerOffset}
@@ -17,8 +18,10 @@ import scala.concurrent.ExecutionContext
 
 private[kafkadispatcher]
 class FetchConsumerOffsetProcessor(kafkaDispatcher: KafkaDispatcherRef,
-                                   consumer: CastleSimpleConsumer)
-  extends QueueProcessor[DispatchFetchConsumerOffsetToKafka, FetchConsumerOffsetKafkaResponse](kafkaDispatcher) with Logging {
+                                   consumer: CastleSimpleConsumer,
+                                   metricsLogger: MetricsLogger)
+  extends QueueProcessor[DispatchFetchConsumerOffsetToKafka, FetchConsumerOffsetKafkaResponse](
+    kafkaDispatcher, consumer, metricsLogger) with Logging {
 
   private var correlationId = 0
   private var requestQueue = LinkedHashMap.empty[ConsumerId, Map[TopicAndPartition, Set[RequesterInfo]]]
@@ -58,6 +61,7 @@ class FetchConsumerOffsetProcessor(kafkaDispatcher: KafkaDispatcherRef,
             requesters.foreach(r => addToQueue(DispatchFetchConsumerOffsetToKafka(consumerId, topicAndPartition, r)))
           },
           unknownTopicOrPartitionCode = {
+            handleUnknownTopicOrPartitionCode(topicAndPartition)
             requesters.foreach(requesterInfo =>
               requesterInfo.ref ! FetchConsumerOffset.NotFound(consumerId, topicAndPartition))
           },

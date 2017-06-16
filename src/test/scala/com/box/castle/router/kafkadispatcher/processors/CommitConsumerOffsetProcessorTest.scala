@@ -1,11 +1,14 @@
 package com.box.castle.router.kafkadispatcher.processors
 
+import akka.testkit.TestProbe
 import com.box.castle.collections.immutable.LinkedHashMap
 import com.box.castle.router.kafkadispatcher.KafkaDispatcherRef
-import com.box.castle.router.kafkadispatcher.messages.{LeaderNotAvailable, DispatchCommitConsumerOffsetToKafka}
-import com.box.castle.router.messages.{OffsetAndMetadata, CommitConsumerOffset}
+import com.box.castle.router.kafkadispatcher.messages.{CommitConsumerOffsetKafkaResponse, LeaderNotAvailable, DispatchCommitConsumerOffsetToKafka}
+import com.box.castle.router.messages.{RefreshBrokersAndLeaders, OffsetAndMetadata, CommitConsumerOffset}
 import com.box.castle.consumer.{ConsumerId, CastleSimpleConsumer}
-import kafka.common.TopicAndPartition
+import com.box.castle.router.mock.{MockActorTools, MockMetricsLogger}
+import kafka.api.OffsetCommitResponse
+import kafka.common.{ErrorMapping, TopicAndPartition}
 import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 
@@ -14,7 +17,7 @@ import scala.collection.immutable.Queue
 
 
 
-class CommitConsumerOffsetProcessorTest extends Specification with Mockito {
+class CommitConsumerOffsetProcessorTest extends Specification with Mockito with MockActorTools {
 
   val CacheMaxSizeInBytes: Int = 10000000
   val DefaultMessageSize: Int = 498452
@@ -27,7 +30,8 @@ class CommitConsumerOffsetProcessorTest extends Specification with Mockito {
   "CommitConsumerOffsetProcessor" should {
     "handle stale offsets correctly when adding to queue" in {
       val kafkaDispatcher = mock[KafkaDispatcherRef]
-      val processor = new CommitConsumerOffsetProcessor(kafkaDispatcher, mock[CastleSimpleConsumer])
+      val metricsLogger = new MockMetricsLogger()
+      val processor = new CommitConsumerOffsetProcessor(kafkaDispatcher, mock[CastleSimpleConsumer], metricsLogger)
 
       // Initial add is super easy
       val requesterInfo = mock[RequesterInfo]
@@ -117,7 +121,8 @@ class CommitConsumerOffsetProcessorTest extends Specification with Mockito {
 
     "handle leader not available properly" in {
       val kafkaDispatcher = mock[KafkaDispatcherRef]
-      val processor = new CommitConsumerOffsetProcessor(kafkaDispatcher, mock[CastleSimpleConsumer])
+      val metricsLogger = new MockMetricsLogger()
+      val processor = new CommitConsumerOffsetProcessor(kafkaDispatcher, mock[CastleSimpleConsumer], metricsLogger)
 
       val requesterInfo = mock[RequesterInfo]
       val requesterInfo2 = mock[RequesterInfo]
@@ -135,6 +140,21 @@ class CommitConsumerOffsetProcessorTest extends Specification with Mockito {
           DispatchCommitConsumerOffsetToKafka(consumerId, topicAndPartition, OffsetAndMetadata(309, None), requesterInfo),
           DispatchCommitConsumerOffsetToKafka(consumerId2, topicAndPartition, OffsetAndMetadata(10, None), requesterInfo2)
       )))
+    }
+
+    "send a refresh brokers request when unknown topics are encountered" in new actorSystem {
+      val kafkaDispatcher = mock[KafkaDispatcherRef]
+      val metricsLogger = new MockMetricsLogger()
+      val processor = new CommitConsumerOffsetProcessor(kafkaDispatcher, mock[CastleSimpleConsumer], metricsLogger)
+
+      val offsetCommitResponse = new OffsetCommitResponse(Map(topicAndPartition -> ErrorMapping.UnknownTopicOrPartitionCode))
+      val mockRequesterActorRefOriginal = TestProbe()
+      val requesterInfo = RequesterInfo(mockRequesterActorRefOriginal.ref)
+      val response = CommitConsumerOffsetKafkaResponse(consumerId,
+        offsetCommitResponse, Map(topicAndPartition -> (OffsetAndMetadata(43, None), requesterInfo)))
+
+      processor.processResponse(response)
+      there was one(kafkaDispatcher).!(RefreshBrokersAndLeaders(List.empty))
     }
   }
 }

@@ -49,10 +49,10 @@ class KafkaDispatcher(boxSimpleConsumerFactory: CastleSimpleConsumerFactory,
 
   val typedSelf = KafkaDispatcherRef(self)
 
-  val commitConsumerOffsetProcessor = new CommitConsumerOffsetProcessor(typedSelf, boxSimpleConsumer)
-  val fetchConsumerOffsetProcessor = new FetchConsumerOffsetProcessor(typedSelf, boxSimpleConsumer)
-  val fetchOffsetProcessor = new FetchOffsetProcessor(typedSelf, boxSimpleConsumer)
-  val fetchTopicMetadataProcessor = new FetchTopicMetadataProcessor(typedSelf, context.system.scheduler, boxSimpleConsumer)
+  val commitConsumerOffsetProcessor = new CommitConsumerOffsetProcessor(typedSelf, boxSimpleConsumer, metricsLogger)
+  val fetchConsumerOffsetProcessor = new FetchConsumerOffsetProcessor(typedSelf, boxSimpleConsumer, metricsLogger)
+  val fetchOffsetProcessor = new FetchOffsetProcessor(typedSelf, boxSimpleConsumer, metricsLogger)
+  val fetchTopicMetadataProcessor = new FetchTopicMetadataProcessor(typedSelf, context.system.scheduler, boxSimpleConsumer, metricsLogger)
   val fetchDataProcessor = new FetchDataProcessor(typedSelf, boxSimpleConsumer, cacheSizeInBytes, routerConfig, metricsLogger)
 
   val queueProcessors = new QueueProcessors(fetchConsumerOffsetProcessor,
