@@ -138,5 +138,16 @@ class FetchDataProcessorCacheTest extends Specification with Mockito with MockBa
       cache.get(topicAndPartition3, 38) must_== None
       cache.get(topicAndPartition3, 256).get.sizeInBytes must_== 100
     }
+
+    "return all contiguous batches from cache that fit in batchsize when >0" in {
+      val topicAndPartition = TopicAndPartition("perf", 1)
+      val cache = FetchDataProcessorCache(57 + 79 + 219)
+        .add(topicAndPartition, createBatch(20, 2, 57))
+        .add(topicAndPartition, createBatch(22, 1, 79))
+        .add(topicAndPartition, createBatch(23, 7, 219))
+
+      // Verify
+      cache.get(topicAndPartition, 20, 300).get.sizeInBytes must_== 57 + 79 + 219
+    }
   }
 }

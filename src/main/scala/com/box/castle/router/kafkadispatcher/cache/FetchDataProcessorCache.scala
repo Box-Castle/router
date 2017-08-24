@@ -23,8 +23,8 @@ private[kafkadispatcher] class FetchDataProcessorCache private(
     }
   }
 
-  def get(topicAndPartition: TopicAndPartition, offset: Long): Option[CastleMessageBatch] =
-    cacheMap.get(topicAndPartition).flatMap(cache => cache.get(offset))
+  def get(topicAndPartition: TopicAndPartition, offset: Long, bufferSize: Int = 0): Option[CastleMessageBatch] =
+    cacheMap.get(topicAndPartition).flatMap(cache => cache.getAll(offset, bufferSize))
 
   def setMaxSizeInBytes(newMaxSizeInBytes: Long): FetchDataProcessorCache = {
     if (newMaxSizeInBytes == maxSizeInBytes)

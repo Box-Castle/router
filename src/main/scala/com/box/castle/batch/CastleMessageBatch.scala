@@ -90,6 +90,19 @@ object CastleMessageBatch {
     new CastleMessageBatch(toIndexedSeq(messageSetCopy), messageSet.sizeInBytes)
   }
 
+  /**
+    * This method constructs a new CastleMessageBatch from a vector of consecutive CastleMessageBatches.
+    * NOTE: In this case we don't need to do a deep copy since that was already done when the CastleMessageBatches
+    * in the vector were created.
+    * @param messageBatches
+    * @return
+    */
+  def apply(messageBatches: Vector[CastleMessageBatch]): CastleMessageBatch = {
+    val newMessageAndOffsetSeq = messageBatches.foldLeft(Vector[MessageAndOffset]())(_ ++ _.messageAndOffsetSeq)
+    val newMessageSize = messageBatches.foldLeft(0)(_ + _.sizeInBytes)
+    new CastleMessageBatch(newMessageAndOffsetSeq, newMessageSize)
+  }
+
   private def deepCopy(messageSet: MessageSet): MessageSet = {
     val original = messageSet.asInstanceOf[ByteBufferMessageSet].buffer.asReadOnlyBuffer()
 

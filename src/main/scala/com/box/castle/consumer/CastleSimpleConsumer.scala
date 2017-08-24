@@ -36,6 +36,12 @@ class CastleSimpleConsumer(broker: Broker,
   val port = consumer.port
 
   /**
+    * Returns the consumer bufferSize
+    * @return
+    */
+  def getBufferSize = bufferSize
+
+  /**
     * Fetches messages at a given offset for the topic and partition provided in the request parameter
     *
     * @param requests - A map from topic and partition to the corresponding offset to fetch

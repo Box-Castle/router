@@ -49,6 +49,23 @@ class CastleMessageBatchTest extends Specification with Mockito with MockBatchTo
       messageBatch.sizeInBytes must_== 100 + 200 + MessageSet.LogOverhead * 2
       messageBatch.maxOffset must_== 51
     }
+
+    "correctly create a message batch from a batch vector " in {
+      val a = makeMockMessageAndOffset(50, 51, 100)
+      val b = makeMockMessageAndOffset(51, 52, 150)
+      val c = makeMockMessageAndOffset(52, 53, 200)
+      val mockMessageSet1 = makeMockMessageSet(List(a))
+      val mockMessageSet2 = makeMockMessageSet(List(b,c))
+      val mockMessageBatch1 = CastleMessageBatch(mockMessageSet1)
+      val mockMessageBatch2 = CastleMessageBatch(mockMessageSet2)
+
+      val combinedMessageBatch = CastleMessageBatch(Vector(mockMessageBatch1,mockMessageBatch2))
+
+      combinedMessageBatch.size must_== 3
+      combinedMessageBatch.sizeInBytes must_== 100 + 150 + 200 + MessageSet.LogOverhead * 3
+      combinedMessageBatch.offset must_== 50
+      combinedMessageBatch.nextOffset must_== 53
+    }
   }
 
   "MessageBatch.createBatchFromOffset" should {

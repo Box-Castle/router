@@ -29,4 +29,6 @@ private[cache] class EmptyCache(val maxSizeInBytes: Long) extends Cache {
   }
 
   def get(offset: Long): Option[CastleMessageBatch] = None
+
+  def getAll(offset: Long, bufferSize: Int): Option[CastleMessageBatch] = None
 }

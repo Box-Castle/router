@@ -40,7 +40,7 @@ class FetchDataProcessor(kafkaDispatcher: KafkaDispatcherRef,
   override def getFromCache(request: DispatchFetchDataToKafka): Option[FetchData.Success] = {
     val topicAndPartition = request.topicAndPartition
     val offset = request.offset
-    cache.get(topicAndPartition, offset).map(castleMessageBatch => {
+    cache.get(topicAndPartition, offset, consumer.getBufferSize).map(castleMessageBatch => {
       count(Metrics.CacheHits)
       FetchData.Success(topicAndPartition, offset, castleMessageBatch)
     })

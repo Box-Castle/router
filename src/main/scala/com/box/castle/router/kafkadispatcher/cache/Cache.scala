@@ -32,6 +32,17 @@ private[kafkadispatcher] abstract class Cache {
    */
   def get(offset: Long): Option[CastleMessageBatch]
 
+  /**
+    * Tries to return the largest batch possible in case of a cache hit. Returns None if nothing is found.
+    * It uses the provided offset as the entry point in the cache and then recursively tries to find batches
+    * that start with the nextOffset of the previous batch till the bufferSize is reached.
+    * Passing a bufferSize = 0 makes it behave exactly like get(offset).
+    * @param offset
+    * @param bufferSize
+    * @return
+    */
+  def getAll(offset: Long, bufferSize: Int): Option[CastleMessageBatch]
+
   override def toString: String = {
     s"Cache(maxSizeInBytes=$maxSizeInBytes,currentSizeInBytes=$currentSizeInBytes,data=$data)"
   }

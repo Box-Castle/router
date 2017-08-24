@@ -394,4 +394,38 @@ class CacheTest extends Specification with Mockito with MockBatchTools {
 
     }
   }
+
+  "Cache.getAll" should {
+    "return None if the cache is empty" in {
+      val cache = Cache(100)
+      // Check it returns none
+      cache.getAll(10, 100) shouldEqual None
+    }
+
+    "return None in case of cache miss" in {
+      val cache = Cache(300).add(createBatch(20, 1, 50))
+      // Check it returns none
+      cache.getAll(50, 100) shouldEqual None
+    }
+
+    "return all available contiguous messages in the cache starting with given offset that fit in buffersize" in {
+      var cache = Cache(3000)
+
+      val b1 = createBatch(20, 2, 65)
+      val b2 = createBatch(b1.nextOffset, 1, 87)
+      val b3 = createBatch(b2.nextOffset, 10, 912)
+      val b4 = createBatch(b3.nextOffset, 5, 200)
+
+      cache = cache.add(b1)
+      cache = cache.add(b2)
+      cache = cache.add(b3)
+
+      // Verify
+      val batch = cache.getAll(20,1100).get
+      batch.size shouldEqual b1.size + b2.size + b3.size
+      batch.sizeInBytes shouldEqual b1.sizeInBytes + b2.sizeInBytes + b3.sizeInBytes
+      batch.offset shouldEqual b1.offset
+      batch.nextOffset shouldEqual b3.nextOffset
+    }
+  }
 }
