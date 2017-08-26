@@ -6,10 +6,7 @@ import org.specs2.mock.Mockito
 import org.specs2.mutable.Specification
 
 
-
-
-
-class CastleMessageBatchTest extends Specification with Mockito with MockBatchTools  {
+class CastleMessageBatchTest extends Specification with Mockito with MockBatchTools {
 
   "MessageBatch" should {
     "have a reasonable toString" in {
@@ -55,16 +52,29 @@ class CastleMessageBatchTest extends Specification with Mockito with MockBatchTo
       val b = makeMockMessageAndOffset(51, 52, 150)
       val c = makeMockMessageAndOffset(52, 53, 200)
       val mockMessageSet1 = makeMockMessageSet(List(a))
-      val mockMessageSet2 = makeMockMessageSet(List(b,c))
+      val mockMessageSet2 = makeMockMessageSet(List(b, c))
       val mockMessageBatch1 = CastleMessageBatch(mockMessageSet1)
       val mockMessageBatch2 = CastleMessageBatch(mockMessageSet2)
 
-      val combinedMessageBatch = CastleMessageBatch(Vector(mockMessageBatch1,mockMessageBatch2))
+      val combinedMessageBatch = CastleMessageBatch(Vector(mockMessageBatch1, mockMessageBatch2))
 
       combinedMessageBatch.size must_== 3
       combinedMessageBatch.sizeInBytes must_== 100 + 150 + 200 + MessageSet.LogOverhead * 3
       combinedMessageBatch.offset must_== 50
       combinedMessageBatch.nextOffset must_== 53
+    }
+
+    "not create a message batch from batch vector that is not contiguous" in {
+      val a = makeMockMessageAndOffset(50, 51, 100)
+      val b = makeMockMessageAndOffset(53, 54, 150)
+      val c = makeMockMessageAndOffset(54, 55, 200)
+      val mockMessageSet1 = makeMockMessageSet(List(a))
+      val mockMessageSet2 = makeMockMessageSet(List(b, c))
+      val mockMessageBatch1 = CastleMessageBatch(mockMessageSet1)
+      val mockMessageBatch2 = CastleMessageBatch(mockMessageSet2)
+
+      CastleMessageBatch(Vector(mockMessageBatch1, mockMessageBatch2)) should throwA(new IllegalArgumentException(s"requirement failed: Batches should be contiguous."))
+
     }
   }
 
@@ -204,6 +214,89 @@ class CastleMessageBatchTest extends Specification with Mockito with MockBatchTo
       messageBatch.createBatchFromOffset(32).get.sizeInBytes must_== 0 + (MessageSet.LogOverhead + MessageOverhead) * 3
       messageBatch.createBatchFromOffset(32).get.nextOffset must_== 35
       messageBatch.createBatchFromOffset(32).get.maxOffset must_== 34
+    }
+  }
+
+  "MessageBatch.createBatchBySize" should {
+    "return None when batchSize is <= 0" in {
+      val a = makeMockMessageAndOffset(50, 51, 100)
+      val b = makeMockMessageAndOffset(51, 52, 150)
+      val c = makeMockMessageAndOffset(52, 53, 200)
+
+      val mockMessageSet = makeMockMessageSet(List(a, b, c))
+      val messageBatch = CastleMessageBatch(mockMessageSet)
+
+      messageBatch.createBatchBySize(0) shouldEqual None
+      messageBatch.createBatchBySize(-10) shouldEqual None
+
+    }
+
+    "return None when batchSize is too small to fit even a single message" in {
+      val a = makeMockMessageAndOffset(50, 51, 100)
+      val b = makeMockMessageAndOffset(51, 52, 50)
+      val c = makeMockMessageAndOffset(52, 53, 200)
+
+      val mockMessageSet = makeMockMessageSet(List(a, b, c))
+      val messageBatch = CastleMessageBatch(mockMessageSet)
+
+      messageBatch.createBatchBySize(99) shouldEqual None
+    }
+
+    "returns whole batch if batchSize is large enough to fit the whole batch" in {
+      val a = makeMockMessageAndOffset(50, 51, 100)
+      val b = makeMockMessageAndOffset(51, 52, 150)
+      val c = makeMockMessageAndOffset(52, 53, 200)
+
+      val mockMessageSet = makeMockMessageSet(List(a, b, c))
+      val messageBatch = CastleMessageBatch(mockMessageSet)
+
+      val batch = messageBatch.createBatchBySize(500).get
+      batch.size shouldEqual messageBatch.size
+      batch.offset shouldEqual messageBatch.offset
+      batch.sizeInBytes shouldEqual messageBatch.sizeInBytes
+      batch.nextOffset shouldEqual messageBatch.nextOffset
+    }
+
+    "return initial part of the batch that fits in batchSize" in {
+      val a = makeMockMessageAndOffset(50, 51, 100)
+      val b = makeMockMessageAndOffset(51, 52, 150)
+      val c = makeMockMessageAndOffset(52, 53, 200)
+
+      val mockMessageSet = makeMockMessageSet(List(a, b, c))
+      val messageBatch = CastleMessageBatch(mockMessageSet)
+
+      val batch = messageBatch.createBatchBySize(300).get
+      batch.size shouldEqual 2
+      batch.offset shouldEqual messageBatch.offset
+      batch.sizeInBytes shouldEqual 100 + 150 + MessageSet.LogOverhead * 2
+      batch.nextOffset shouldEqual b.nextOffset
+    }
+
+    "correctly slice legitimate 0 size message (plus overhead) batches" in {
+      val a = makeMockMessageAndOffset(30, 31, MessageOverhead)
+      val b = makeMockMessageAndOffset(31, 32, MessageOverhead)
+      val c = makeMockMessageAndOffset(32, 33, MessageOverhead)
+      val d = makeMockMessageAndOffset(33, 34, MessageOverhead)
+      val e = makeMockMessageAndOffset(34, 35, MessageOverhead)
+
+      val mockMessageSet = makeMockMessageSet(List(a, b, c, d, e))
+      val messageBatch = CastleMessageBatch(mockMessageSet)
+
+      // Should return first 3 messages
+      val maxSize = 3 * (MessageOverhead +  MessageSet.LogOverhead)
+      val batch = messageBatch.createBatchBySize(maxSize).get
+      batch.offset shouldEqual a.offset
+      batch.nextOffset shouldEqual c.nextOffset
+      batch.size shouldEqual 3
+      batch.sizeInBytes shouldEqual maxSize
+
+      // Should return first 2 messages
+      val batch1 = messageBatch.createBatchBySize(maxSize - 1).get
+      batch1.offset shouldEqual a.offset
+      batch1.nextOffset shouldEqual b.nextOffset
+      batch1.size shouldEqual 2
+      batch1.sizeInBytes shouldEqual 2 * (MessageOverhead +  MessageSet.LogOverhead)
+
     }
   }
 }

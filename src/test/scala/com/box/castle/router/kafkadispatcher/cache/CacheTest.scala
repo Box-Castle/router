@@ -408,24 +408,152 @@ class CacheTest extends Specification with Mockito with MockBatchTools {
       cache.getAll(50, 100) shouldEqual None
     }
 
-    "return all available contiguous messages in the cache starting with given offset that fit in buffersize" in {
-      var cache = Cache(3000)
+    "return None if bufferSize is too small to fit a single message" in {
+      val cache = Cache(300).add(createBatch(20, 1, 50))
+      // Check it returns none
+      cache.getAll(20, 49) shouldEqual None
+    }
+
+    "return part of the batch in cache if it does not fit entirely" in {
+      val cache = Cache(500).add(createBatch(20, 3, 500))
+
+      // Check it returns part of the batch
+      val batch = cache.getAll(20,400).get
+      batch.size shouldEqual 2
+      batch.offset shouldEqual 20
+      batch.nextOffset shouldEqual 22
+      batch.sizeInBytes must be_<=(400)
+
+    }
+
+    "return just the first hit when batchSize is zero" in {
+      val b1 = createBatch(20, 2, 65)
+      val b2 = createBatch(b1.nextOffset, 1, 87)
+      val b3 = createBatch(b2.nextOffset, 10, 912)
+
+      val cache = Cache(3000).add(b1).add(b2).add(b3)
+
+      // Verify only first batch is returned
+      val batch = cache.getAll(20,0).get
+      batch.size shouldEqual b1.size
+      batch.sizeInBytes shouldEqual b1.sizeInBytes
+      batch.offset shouldEqual b1.offset
+      batch.nextOffset shouldEqual b1.nextOffset
+    }
+
+    "return all available contiguous messages in the cache starting with given offset" in {
 
       val b1 = createBatch(20, 2, 65)
       val b2 = createBatch(b1.nextOffset, 1, 87)
       val b3 = createBatch(b2.nextOffset, 10, 912)
-      val b4 = createBatch(b3.nextOffset, 5, 200)
+      // These batches should not be returned as they are not contiguous
+      val b4 = createBatch(b3.nextOffset+1, 5, 200)
+      val b5 = createBatch(b4.nextOffset, 2, 100)
 
-      cache = cache.add(b1)
-      cache = cache.add(b2)
-      cache = cache.add(b3)
+      val cache = Cache(3000).add(b1).add(b2).add(b3).add(b4).add(b5)
 
       // Verify
-      val batch = cache.getAll(20,1100).get
+      val batch = cache.getAll(20,1500).get
       batch.size shouldEqual b1.size + b2.size + b3.size
       batch.sizeInBytes shouldEqual b1.sizeInBytes + b2.sizeInBytes + b3.sizeInBytes
       batch.offset shouldEqual b1.offset
       batch.nextOffset shouldEqual b3.nextOffset
     }
+
+    "return all available contiguous messages from cache when start offset is in the middle of a batch" in {
+      val b1 = createBatch(20, 2, 65)
+      val b2 = createBatch(b1.nextOffset, 1, 87)
+      val b3 = createBatch(b2.nextOffset, 10, 912)
+      val b4 = createBatch(b3.nextOffset, 5, 200)
+      val b5 = createBatch(b4.nextOffset, 2, 100)
+
+      val cache = Cache(3000).add(b1).add(b2).add(b3).add(b4).add(b5)
+
+      // Verify
+      val batch = cache.getAll(28,1200).get
+      batch.size shouldEqual 5 + b4.size + b5.size
+      batch.offset shouldEqual 28
+      batch.nextOffset shouldEqual b5.nextOffset
+    }
+
+    "slice the last batch if only part of it fits in the specified batchSize" in {
+      val b1 = createBatch(20, 2, 65)
+      val b2 = createBatch(b1.nextOffset, 1, 87)
+      val b3 = createBatch(b2.nextOffset, 10, 912)
+      val b4 = createBatch(b3.nextOffset, 5, 200)
+      val b5 = createBatch(b4.nextOffset, 2, 100)
+
+      val cache = Cache(3000).add(b1).add(b2).add(b3).add(b4).add(b5)
+
+      // Batch b3 should be sliced and only the first 5 messages of that batch should be returned
+      val batch = cache.getAll(20,610).get
+      batch.size shouldEqual b1.size + b2.size + b3.size/2
+      batch.offset shouldEqual 20
+      batch.nextOffset shouldEqual 28
+
+      // Batch b5 should be sliced as bufferSize is 1 less than total size
+      val bufferSize = List(b1, b2, b3, b4, b5).foldLeft(0)(_ + _.sizeInBytes) - 1 // Off by 1
+      val batch2 = cache.getAll(20, bufferSize).get
+      batch2.size shouldEqual 19
+      batch2.offset shouldEqual 20
+      batch2.nextOffset shouldEqual b5.nextOffset - 1
+      batch2.sizeInBytes must be_<=(bufferSize)
+
+    }
+
+    "respect batchSize parameter when returning batches" in {
+      // Setup Cache with 500 contiguous batches each of 1MB size
+      val batches = (0 until 500).map( offset => createBatch(offset,1,1024*1024))
+      var cache = Cache(500*1024*1024)
+      cache = batches.foldLeft(cache)((cache, batch) => cache.add(batch))
+
+      val maxBatchSize = 16*1024*1024
+
+      // Should return first 16 batches
+      val batch1 = cache.getAll(0,maxBatchSize).get
+      batch1.size shouldEqual 16
+      batch1.sizeInBytes shouldEqual maxBatchSize
+      batch1.offset shouldEqual 0
+      batch1.nextOffset shouldEqual 16
+
+      // Should return last 16 batches
+      val batch2 = cache.getAll(484,maxBatchSize).get
+      batch2.size shouldEqual 16
+      batch2.sizeInBytes shouldEqual maxBatchSize
+      batch2.offset shouldEqual 484
+      batch2.nextOffset shouldEqual 500
+
+      // Should return middle 16 batches
+      val batch3 = cache.getAll(300,maxBatchSize).get
+      batch3.size shouldEqual 16
+      batch3.sizeInBytes shouldEqual maxBatchSize
+      batch3.offset shouldEqual 300
+      batch3.nextOffset shouldEqual 316
+
+      // Should return last 15 batches
+      val batch4 = cache.getAll(485,maxBatchSize).get
+      batch4.size shouldEqual 15
+      batch4.sizeInBytes shouldEqual 15*1024*1024
+      batch4.offset shouldEqual 485
+      batch4.nextOffset shouldEqual 500
+
+      // Should return only the last batch
+      val batch5 = cache.getAll(499,maxBatchSize).get
+      batch5.size shouldEqual 1
+      batch5.sizeInBytes shouldEqual batches.last.sizeInBytes
+      batch5.offset shouldEqual batches.last.offset
+      batch5.nextOffset shouldEqual batches.last.nextOffset
+
+      // Should return 15 messages ( taking 1 message from the last batch instead of the entire batch )
+      // This is because the bufferSize is 1 less than the total required size to fit the last batch entirely.
+      cache = cache.add(createBatch(500, 2, 2*1024*1024))
+      val batch6 = cache.getAll(486, maxBatchSize - 1 ).get
+      batch6.size shouldEqual 15
+      batch6.sizeInBytes shouldEqual 15*1024*1024
+      batch6.offset shouldEqual 486
+      batch6.nextOffset shouldEqual 501
+
+    }
+
   }
 }

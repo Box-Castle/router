@@ -139,15 +139,31 @@ class FetchDataProcessorCacheTest extends Specification with Mockito with MockBa
       cache.get(topicAndPartition3, 256).get.sizeInBytes must_== 100
     }
 
-    "return all contiguous batches from cache that fit in batchsize when >0" in {
+    "return all contiguous batches from cache that fit in specified batchSize" in {
       val topicAndPartition = TopicAndPartition("perf", 1)
       val cache = FetchDataProcessorCache(57 + 79 + 219)
         .add(topicAndPartition, createBatch(20, 2, 57))
         .add(topicAndPartition, createBatch(22, 1, 79))
         .add(topicAndPartition, createBatch(23, 7, 219))
 
-      // Verify
-      cache.get(topicAndPartition, 20, 300).get.sizeInBytes must_== 57 + 79 + 219
+      // This should return the first 2 batches and part of the third batch
+      val batch = cache.get(topicAndPartition, 20, 300).get
+      batch.size shouldEqual 8
+      batch.offset shouldEqual 20
+      batch.nextOffset shouldEqual 28
+      batch.sizeInBytes must be_<=(300)
+    }
+
+    "not return batches that are not contiguous" in {
+      val topicAndPartition = TopicAndPartition("perf", 1)
+      val cache = FetchDataProcessorCache(57 + 79 + 219 + 100)
+        .add(topicAndPartition, createBatch(20, 2, 57))
+        .add(topicAndPartition, createBatch(22, 1, 79))
+        .add(topicAndPartition, createBatch(24, 7, 219))
+        .add(topicAndPartition, createBatch(31, 2, 100))
+
+      // This should return only the first two batches as the last two are non-contiguous.
+      cache.get(topicAndPartition, 20, 500).get.sizeInBytes must_== 57 + 79
     }
   }
 }

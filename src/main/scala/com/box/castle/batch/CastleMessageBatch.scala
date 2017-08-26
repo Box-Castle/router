@@ -74,6 +74,30 @@ case class CastleMessageBatch(messageAndOffsetSeq: IndexedSeq[MessageAndOffset],
     }
   }
 
+  /**
+    * Create a new CastleMessageBatch sliced off at a specific Size limit starting from the beginning.
+    * @param batchSize
+    * @return
+    */
+  def createBatchBySize(batchSize: Int): Option[CastleMessageBatch] = {
+    if(batchSize <= 0) None
+    else if (batchSize >= sizeInBytes) Some(this)
+    else {
+      val (endIdx, _) = messageAndOffsetSeq.foldLeft((0, batchSize)){ case ((idx, bSize), message) =>
+        val remainingSize = bSize - MessageSet.entrySize(message.message)
+        (if( remainingSize < 0 ) idx  else idx + 1, remainingSize)
+      }
+      if(endIdx > 0){
+        val newMessageAndOffsetSeq = messageAndOffsetSeq.slice(0, endIdx)
+        // Calculate the size in bytes of the new slice of the messages
+        val sizeInBytes = MessageSet.messageSetSize(newMessageAndOffsetSeq.map(messageAndOffset => messageAndOffset.message))
+        assert(sizeInBytes <= batchSize)
+        Some(new CastleMessageBatch(newMessageAndOffsetSeq, sizeInBytes))
+      }
+      else None
+    }
+  }
+
   override def toString: String =
     s"CastleMessageBatch(offset=$offset,nextOffset=$nextOffset,size=$size,sizeInBytes=$sizeInBytes,maxOffset=$maxOffset)"
 }
@@ -98,8 +122,13 @@ object CastleMessageBatch {
     * @return
     */
   def apply(messageBatches: Vector[CastleMessageBatch]): CastleMessageBatch = {
-    val newMessageAndOffsetSeq = messageBatches.foldLeft(Vector[MessageAndOffset]())(_ ++ _.messageAndOffsetSeq)
-    val newMessageSize = messageBatches.foldLeft(0)(_ + _.sizeInBytes)
+
+    val (newMessageAndOffsetSeq, newMessageSize) =
+      messageBatches.foldLeft((Vector[MessageAndOffset](),0)){ case ((messages, batchSize), batch) =>
+        // Ensure batches are contiguous
+        require(messages.isEmpty || messages.last.nextOffset == batch.offset,"Batches should be contiguous.")
+        (messages ++ batch.messageAndOffsetSeq, batchSize + batch.sizeInBytes)
+    }
     new CastleMessageBatch(newMessageAndOffsetSeq, newMessageSize)
   }
 

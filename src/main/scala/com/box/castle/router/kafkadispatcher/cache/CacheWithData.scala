@@ -86,26 +86,42 @@ private[cache] class CacheWithData private(val data: LinkedHashMap[Long, CastleM
 
   /**
     * Gets all messages from the cache that fit in the specified buffer size starting with the provided offset.
-    * If there is a cache hit this method returns atleast one message irrespective of the bufferSize otherwise
-    * returns a None in case of a miss.
+    * If bufferSize specified is 0 then this method behaves exactly like get(offset).
+    * But if bufferSize is non-zero but too small to fit even a single message it will return None despite a
+    * cache hit. Finally if a batch in the cache is too big to fit in the remaining bufferSize, it will be sliced
+    * to fit part of the batch starting at the beginning.
+    *
     * @param offset
     * @param bufferSize
     * @return
     */
   def getAll(offset: Long, bufferSize: Int): Option[CastleMessageBatch] = {
-    get(offset).map{ batch =>
-      val messageBatches = getMoreRecursive(Vector(batch), bufferSize)
-      if(messageBatches.size > 1)
-        // Need to concatenate batches into a single batch
-        CastleMessageBatch(messageBatches)
-      else
-        messageBatches.head
+    get(offset) match {
+      case Some(batch) =>
+        // Cache Hit
+        if (bufferSize > 0 && bufferSize < batch.sizeInBytes) {
+          // Buffer too small for batch so try to fit partial batch
+          batch.createBatchBySize(bufferSize)
+        }
+        else {
+          // Try to fetch more contiguous batches form cache
+          val messageBatches = getMoreRecursive(Vector(batch), bufferSize - batch.sizeInBytes)
+          if (messageBatches.size > 1)
+            Some(CastleMessageBatch(messageBatches)) // Concatenate batches
+          else
+            Some(messageBatches.head)
+        }
+      case None =>
+        // Cache miss
+        None
     }
   }
 
   /**
     * Recursive function to keep fetching more batches from the cache with the nextOffset of the previous batch
-    * till a cache miss happens or we exhaust the buffer capacity.
+    * till a cache miss happens or we exhaust the buffer capacity. If a whole batch does not fit, it maybe sliced to
+    * fit partially.
+    *
     * @param currentList
     * @param bufferSize
     * @return
@@ -117,8 +133,12 @@ private[cache] class CacheWithData private(val data: LinkedHashMap[Long, CastleM
       case Some(batch) =>
         if (bufferSize - batch.sizeInBytes >= 0)
           getMoreRecursive(currentList :+ batch, bufferSize - batch.sizeInBytes)
-        else
-          currentList
+        else {
+          batch.createBatchBySize(bufferSize) match {
+            case Some(partialBatch) => currentList :+ partialBatch
+            case None => currentList
+          }
+        }
       case None => currentList
     }
   }
