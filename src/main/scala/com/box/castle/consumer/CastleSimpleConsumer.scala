@@ -13,7 +13,7 @@ import scala.util.control.Exception
 
 class CastleSimpleConsumer(broker: Broker,
                            brokerTimeout: FiniteDuration,
-                           bufferSize: Int,
+                           val bufferSize: Int,
                            clientId: ClientId,
                            simpleConsumerFactory: SimpleConsumerFactory,
                            optZookeeperOffsetMetadataManagerFactory: Option[OffsetMetadataManagerFactory],
@@ -34,12 +34,6 @@ class CastleSimpleConsumer(broker: Broker,
   val brokerInfo = s"${consumer.host}:${consumer.port}"
   val host = consumer.host
   val port = consumer.port
-
-  /**
-    * Returns the consumer bufferSize
-    * @return
-    */
-  def getBufferSize = bufferSize
 
   /**
     * Fetches messages at a given offset for the topic and partition provided in the request parameter

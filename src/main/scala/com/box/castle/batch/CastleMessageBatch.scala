@@ -80,21 +80,30 @@ case class CastleMessageBatch(messageAndOffsetSeq: IndexedSeq[MessageAndOffset],
     * @return
     */
   def createBatchBySize(batchSize: Int): Option[CastleMessageBatch] = {
-    if(batchSize <= 0) None
-    else if (batchSize >= sizeInBytes) Some(this)
+    if(batchSize <= 0) {
+      // batchSize is too small
+      None
+    }
+    else if (batchSize >= sizeInBytes) {
+      // batchSize is big enough for whole batch
+      Some(this)
+    }
     else {
-      val (endIdx, _) = messageAndOffsetSeq.foldLeft((0, batchSize)){ case ((idx, bSize), message) =>
-        val remainingSize = bSize - MessageSet.entrySize(message.message)
-        (if( remainingSize < 0 ) idx  else idx + 1, remainingSize)
+      // we need to slice the batch
+      var remainingBatchSize = batchSize
+      val newMessageAndOffsetSeq = messageAndOffsetSeq.takeWhile { messageAndOffset =>
+        remainingBatchSize -= MessageSet.entrySize(messageAndOffset.message)
+        remainingBatchSize >= 0
       }
-      if(endIdx > 0){
-        val newMessageAndOffsetSeq = messageAndOffsetSeq.slice(0, endIdx)
+
+      if(newMessageAndOffsetSeq.nonEmpty){
         // Calculate the size in bytes of the new slice of the messages
         val sizeInBytes = MessageSet.messageSetSize(newMessageAndOffsetSeq.map(messageAndOffset => messageAndOffset.message))
         assert(sizeInBytes <= batchSize)
         Some(new CastleMessageBatch(newMessageAndOffsetSeq, sizeInBytes))
       }
-      else None
+      else
+        None
     }
   }
 
@@ -115,13 +124,11 @@ object CastleMessageBatch {
   }
 
   /**
-    * This method constructs a new CastleMessageBatch from a vector of consecutive CastleMessageBatches.
-    * NOTE: In this case we don't need to do a deep copy since that was already done when the CastleMessageBatches
-    * in the vector were created.
+    * This method constructs a new CastleMessageBatch from a sequence of consecutive CastleMessageBatches.
     * @param messageBatches
     * @return
     */
-  def apply(messageBatches: Vector[CastleMessageBatch]): CastleMessageBatch = {
+  def apply(messageBatches: IndexedSeq[CastleMessageBatch]): CastleMessageBatch = {
 
     val (newMessageAndOffsetSeq, newMessageSize) =
       messageBatches.foldLeft((Vector[MessageAndOffset](),0)){ case ((messages, batchSize), batch) =>

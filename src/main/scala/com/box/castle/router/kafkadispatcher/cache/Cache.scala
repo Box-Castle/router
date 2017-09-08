@@ -15,44 +15,38 @@ private[kafkadispatcher] abstract class Cache {
   val data: LinkedHashMap[Long, CastleMessageBatch]
   val maxSizeInBytes: Long
   val currentSizeInBytes: Long
+  val bufferSize: Int
 
   require(maxSizeInBytes > 0, "Cache must have more than 0 bytes to use")
+  require(bufferSize > 0, "Fetch bufferSize should always be more than 0 bytes")
 
   def setMaxSizeInBytes(newMaxSizeInBytes: Long): Cache
+
+  def setBufferSize(newBufferSize: Int): Cache
 
   def add(batch: CastleMessageBatch): Cache
 
   /**
-   * Returns a CastleMessageBatch if the given offset is in the Cache.
+   * Returns the largest CastleMessageBatch that fits in specified bufferSize if the given offset is in the Cache.
    * The offset does not have to align exactly with the first offset in a CastleMessageBatch.  We will go through each
    * batch and try to slice a CastleMessageBatch if it contains this offset somewhere inside it, even if it's not
-   * associate with the first message.
+   * associate with the first message. Similarly we will try to fit part of a batch in the cache if the whole thing
+   * doesn't fit in the provided buffer size.
    * @param offset
    * @return
    */
   def get(offset: Long): Option[CastleMessageBatch]
 
-  /**
-    * Tries to return the largest batch possible in case of a cache hit. Returns None if nothing is found.
-    * It uses the provided offset as the entry point in the cache and then recursively tries to find batches
-    * that start with the nextOffset of the previous batch till the bufferSize is reached.
-    * Passing a bufferSize = 0 makes it behave exactly like get(offset).
-    * @param offset
-    * @param bufferSize
-    * @return
-    */
-  def getAll(offset: Long, bufferSize: Int): Option[CastleMessageBatch]
-
   override def toString: String = {
-    s"Cache(maxSizeInBytes=$maxSizeInBytes,currentSizeInBytes=$currentSizeInBytes,data=$data)"
+    s"Cache(bufferSize=$bufferSize,maxSizeInBytes=$maxSizeInBytes,currentSizeInBytes=$currentSizeInBytes,data=$data)"
   }
 }
 
 private[kafkadispatcher] object Cache {
 
-  def apply(maxSizeInBytes: Long): Cache = new EmptyCache(maxSizeInBytes)
+  def apply(maxSizeInBytes: Long, bufferSize: Int): Cache = new EmptyCache(maxSizeInBytes, bufferSize)
 
-  def apply(batch: CastleMessageBatch, maxSizeInBytes: Long): Cache = apply(maxSizeInBytes).add(batch)
+  def apply(batch: CastleMessageBatch, maxSizeInBytes: Long, bufferSize: Int): Cache = apply(maxSizeInBytes, bufferSize).add(batch)
 
 }
 

@@ -31,6 +31,8 @@ class FetchDataProcessorTest extends Specification with Mockito with MockActorTo
     "handle outstanding messages in the queue when getting data" in new actorSystem {
       val kafkaDispatcher = mock[KafkaDispatcherRef]
       val consumer = mock[CastleSimpleConsumer]
+      consumer.bufferSize returns DefaultMessageSize
+
       val metricsLogger = new MockMetricsLogger()
 
       val fdp = new FetchDataProcessor(kafkaDispatcher, consumer, CacheMaxSizeInBytes, RouterConfig.DefaultConfig, metricsLogger)
@@ -121,6 +123,7 @@ class FetchDataProcessorTest extends Specification with Mockito with MockActorTo
     "handle outstanding messages in the queue when getting NO DATA" in new actorSystem {
       val kafkaDispatcher = mock[KafkaDispatcherRef]
       val consumer = mock[CastleSimpleConsumer]
+      consumer.bufferSize returns DefaultMessageSize
       val metricsLogger = new MockMetricsLogger()
 
       val fdp = new FetchDataProcessor(kafkaDispatcher, consumer, CacheMaxSizeInBytes, RouterConfig.DefaultConfig, metricsLogger)
@@ -197,6 +200,7 @@ class FetchDataProcessorTest extends Specification with Mockito with MockActorTo
 
     "send a refresh brokers request when unknown topics are encountered" in new actorSystem {
       val consumer = mock[CastleSimpleConsumer]
+      consumer.bufferSize returns DefaultMessageSize
       val kafkaDispatcher = mock[KafkaDispatcherRef]
       val metricsLogger = new MockMetricsLogger()
       val fdp = new FetchDataProcessor(kafkaDispatcher, consumer, CacheMaxSizeInBytes, RouterConfig.DefaultConfig, metricsLogger)
