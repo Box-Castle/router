@@ -452,22 +452,10 @@ class CacheTest extends Specification with Mockito with MockBatchTools {
       cache.get(50) shouldEqual None
     }
 
-    "return None if bufferSize is too small to fit a single message" in {
-      val cache = Cache(300, 49).add(createBatch(20, 1, 50))
+    "return None if bufferSize is too small to fit the batch" in {
+      val cache = Cache(500, 400).add(createBatch(20, 3, 500))
       // Check it returns none
       cache.get(20) shouldEqual None
-    }
-
-    "return part of the batch in cache if it does not fit entirely" in {
-      val cache = Cache(500, 400).add(createBatch(20, 3, 500))
-
-      // Check it returns part of the batch
-      val batch = cache.get(20).get
-      batch.size shouldEqual 2
-      batch.offset shouldEqual 20
-      batch.nextOffset shouldEqual 22
-      batch.sizeInBytes must be_<=(400)
-
     }
 
     "return all available contiguous messages in the cache starting with given offset" in {
@@ -505,7 +493,7 @@ class CacheTest extends Specification with Mockito with MockBatchTools {
       batch.nextOffset shouldEqual b5.nextOffset
     }
 
-    "slice the last batch if only part of it fits in the specified batchSize" in {
+    "skip the last batch if it does not fit in the specified batchSize" in {
       val b1 = createBatch(20, 2, 65)
       val b2 = createBatch(b1.nextOffset, 1, 87)
       val b3 = createBatch(b2.nextOffset, 10, 912)
@@ -514,19 +502,20 @@ class CacheTest extends Specification with Mockito with MockBatchTools {
 
       var cache = Cache(3000,610).add(b1).add(b2).add(b3).add(b4).add(b5)
 
-      // Batch b3 should be sliced and only the first 5 messages of that batch should be returned
+      // Batch b3 should not be returned
       val batch = cache.get(20).get
-      batch.size shouldEqual b1.size + b2.size + b3.size/2
-      batch.offset shouldEqual 20
-      batch.nextOffset shouldEqual 28
+      batch.size shouldEqual b1.size + b2.size
+      batch.offset shouldEqual b1.offset
+      batch.nextOffset shouldEqual b2.nextOffset
+      batch.sizeInBytes shouldEqual b1.sizeInBytes + b2.sizeInBytes
 
-      // Batch b5 should be sliced as bufferSize is 1 less than total size
+      // Batch b5 should not be returned as the bufferSize is 1 less than total size
       val newBufferSize = List(b1, b2, b3, b4, b5).foldLeft(0)(_ + _.sizeInBytes) - 1 // Off by 1
       cache = cache.setBufferSize(newBufferSize)
       val batch2 = cache.get(20).get
-      batch2.size shouldEqual 19
-      batch2.offset shouldEqual 20
-      batch2.nextOffset shouldEqual b5.nextOffset - 1
+      batch2.size shouldEqual 18
+      batch2.offset shouldEqual b1.offset
+      batch2.nextOffset shouldEqual b4.nextOffset
       batch2.sizeInBytes must be_<=(newBufferSize)
 
     }
@@ -576,14 +565,14 @@ class CacheTest extends Specification with Mockito with MockBatchTools {
       batch5.offset shouldEqual batches.last.offset
       batch5.nextOffset shouldEqual batches.last.nextOffset
 
-      // Should return 15 messages ( taking 1 message from the last batch instead of the entire batch )
+      // Should return 14 messages ( skipping the last batch added)
       // This is because the bufferSize is 1 less than the total required size to fit the last batch entirely.
       cache = cache.add(createBatch(500, 2, 2*1024*1024)).setBufferSize(bufferSize - 1)
       val batch6 = cache.get(486).get
-      batch6.size shouldEqual 15
-      batch6.sizeInBytes shouldEqual 15*1024*1024
+      batch6.size shouldEqual 14
+      batch6.sizeInBytes shouldEqual 14*1024*1024
       batch6.offset shouldEqual 486
-      batch6.nextOffset shouldEqual 501
+      batch6.nextOffset shouldEqual 500
 
     }
 

@@ -52,7 +52,7 @@ private[cache] class CacheWithData private(val data: LinkedHashMap[Long, CastleM
   }
 
   /**
-    * Gets all messages from the cache that fit in the specified buffer size starting with the provided offset.
+    * Gets all batches from the cache that fit in the specified buffer size starting with the provided offset.
     * This works even if the offset happens to be in the middle of a batch
     * and is not exactly aligned with a batch since each CastleMessageBatch consists of
     * multiple messages.  For example, say we have two CastleMessageBatches each with a few messages:
@@ -71,9 +71,9 @@ private[cache] class CacheWithData private(val data: LinkedHashMap[Long, CastleM
     *   get(25) = Some(CastleMessageBatch(msg @ 25)
     *   get(26) = None
     *
-    * If a batch in the cache is too big to fit in the remaining remainingBufferSize, it will be sliced
-    * to fit part of the batch starting at the beginning. If remainingBufferSize is too small to fit
-    * even a single message it will return None despite a cache hit.
+    * If the bufferSize is too small to fit even a single batch from the cache then it returns None
+    * despite a cache hit. Ideally this should never happen as bufferSize should be set as the kafka message
+    * batch size.
     *
     * @return
     */
@@ -100,8 +100,8 @@ private[cache] class CacheWithData private(val data: LinkedHashMap[Long, CastleM
       case Some(batch) =>
         // Cache Hit
         if (bufferSize > 0 && bufferSize < batch.sizeInBytes) {
-          // Buffer too small for batch so try to fit partial batch
-          batch.createBatchBySize(bufferSize)
+          // Buffer too small for this batch
+          None
         }
         else {
           // Try to fetch more contiguous batches form cache
@@ -135,12 +135,12 @@ private[cache] class CacheWithData private(val data: LinkedHashMap[Long, CastleM
         if (remainingBufferSize - batch.sizeInBytes >= 0)
           getMoreRecursive(currentList :+ batch, remainingBufferSize - batch.sizeInBytes)
         else {
-          batch.createBatchBySize(remainingBufferSize) match {
-            case Some(partialBatch) => currentList :+ partialBatch
-            case None => currentList
-          }
+          // Not enough space to fit this batch so just return whatever we have so far
+          currentList
         }
-      case None => currentList
+      case None =>
+        // Cache miss
+        currentList
     }
   }
 

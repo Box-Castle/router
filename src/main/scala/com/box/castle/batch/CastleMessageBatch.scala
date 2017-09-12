@@ -74,39 +74,6 @@ case class CastleMessageBatch(messageAndOffsetSeq: IndexedSeq[MessageAndOffset],
     }
   }
 
-  /**
-    * Create a new CastleMessageBatch sliced off at a specific Size limit starting from the beginning.
-    * @param batchSize
-    * @return
-    */
-  def createBatchBySize(batchSize: Int): Option[CastleMessageBatch] = {
-    if(batchSize <= 0) {
-      // batchSize is too small
-      None
-    }
-    else if (batchSize >= sizeInBytes) {
-      // batchSize is big enough for whole batch
-      Some(this)
-    }
-    else {
-      // we need to slice the batch
-      var remainingBatchSize = batchSize
-      val newMessageAndOffsetSeq = messageAndOffsetSeq.takeWhile { messageAndOffset =>
-        remainingBatchSize -= MessageSet.entrySize(messageAndOffset.message)
-        remainingBatchSize >= 0
-      }
-
-      if(newMessageAndOffsetSeq.nonEmpty){
-        // Calculate the size in bytes of the new slice of the messages
-        val sizeInBytes = MessageSet.messageSetSize(newMessageAndOffsetSeq.map(messageAndOffset => messageAndOffset.message))
-        assert(sizeInBytes <= batchSize)
-        Some(new CastleMessageBatch(newMessageAndOffsetSeq, sizeInBytes))
-      }
-      else
-        None
-    }
-  }
-
   override def toString: String =
     s"CastleMessageBatch(offset=$offset,nextOffset=$nextOffset,size=$size,sizeInBytes=$sizeInBytes,maxOffset=$maxOffset)"
 }

@@ -154,12 +154,12 @@ class FetchDataProcessorCacheTest extends Specification with Mockito with MockBa
         .add(topicAndPartition, createBatch(22, 1, 79))
         .add(topicAndPartition, createBatch(23, 7, 219))
 
-      // This should return the first 2 batches and part of the third batch
+      // This should return the first 2 batches
       val batch = cache.get(topicAndPartition, 20).get
-      batch.size shouldEqual 8
+      batch.size shouldEqual 3
       batch.offset shouldEqual 20
-      batch.nextOffset shouldEqual 28
-      batch.sizeInBytes must be_<=(300)
+      batch.nextOffset shouldEqual 23
+      batch.sizeInBytes shouldEqual 57 + 79
     }
 
     "not return batches that are not contiguous" in {
