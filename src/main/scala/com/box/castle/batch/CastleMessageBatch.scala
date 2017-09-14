@@ -90,6 +90,22 @@ object CastleMessageBatch {
     new CastleMessageBatch(toIndexedSeq(messageSetCopy), messageSet.sizeInBytes)
   }
 
+  /**
+    * This method constructs a new CastleMessageBatch from a sequence of consecutive CastleMessageBatches.
+    * @param messageBatches
+    * @return
+    */
+  def apply(messageBatches: IndexedSeq[CastleMessageBatch]): CastleMessageBatch = {
+
+    val (newMessageAndOffsetSeq, newMessageSize) =
+      messageBatches.foldLeft((Vector[MessageAndOffset](),0)){ case ((messages, batchSize), batch) =>
+        // Ensure batches are contiguous
+        require(messages.isEmpty || messages.last.nextOffset == batch.offset,"Batches should be contiguous.")
+        (messages ++ batch.messageAndOffsetSeq, batchSize + batch.sizeInBytes)
+    }
+    new CastleMessageBatch(newMessageAndOffsetSeq, newMessageSize)
+  }
+
   private def deepCopy(messageSet: MessageSet): MessageSet = {
     val original = messageSet.asInstanceOf[ByteBufferMessageSet].buffer.asReadOnlyBuffer()
 

@@ -13,7 +13,7 @@ import scala.util.control.Exception
 
 class CastleSimpleConsumer(broker: Broker,
                            brokerTimeout: FiniteDuration,
-                           bufferSize: Int,
+                           val bufferSize: Int,
                            clientId: ClientId,
                            simpleConsumerFactory: SimpleConsumerFactory,
                            optZookeeperOffsetMetadataManagerFactory: Option[OffsetMetadataManagerFactory],

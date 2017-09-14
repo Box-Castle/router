@@ -34,7 +34,7 @@ class FetchDataProcessor(kafkaDispatcher: KafkaDispatcherRef,
   private val byteFormatter = java.text.NumberFormat.getIntegerInstance
 
   private var requestQueue = RequestQueue.empty[TopicAndPartition, Long]
-  private var cache = FetchDataProcessorCache(cacheMaxSizeInBytes)
+  private var cache = FetchDataProcessorCache(cacheMaxSizeInBytes, consumer.bufferSize)
   private var correlationId = 0
 
   override def getFromCache(request: DispatchFetchDataToKafka): Option[FetchData.Success] = {

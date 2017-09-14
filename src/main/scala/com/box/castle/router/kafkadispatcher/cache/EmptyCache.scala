@@ -6,7 +6,7 @@ import com.box.castle.collections.immutable
 /**
  * An immutable implementation of Cache with no data in it
  */
-private[cache] class EmptyCache(val maxSizeInBytes: Long) extends Cache {
+private[cache] class EmptyCache(val maxSizeInBytes: Long, val bufferSize: Int) extends Cache {
 
   // Do not access this in an empty cache
   lazy override val currentSizeInBytes: Long = throw new IllegalAccessException()
@@ -18,15 +18,23 @@ private[cache] class EmptyCache(val maxSizeInBytes: Long) extends Cache {
     if (maxSizeInBytes == newMaxSizeInBytes)
       this
     else
-      new EmptyCache(newMaxSizeInBytes)
+      new EmptyCache(newMaxSizeInBytes, bufferSize)
+  }
+
+  def setBufferSize(newBufferSize: Int): Cache = {
+    if(newBufferSize == bufferSize)
+      this
+    else
+      new EmptyCache(maxSizeInBytes, newBufferSize)
   }
 
   def add(batch: CastleMessageBatch): Cache = {
     if (batch.sizeInBytes <= maxSizeInBytes)
-      CacheWithData(batch, maxSizeInBytes)
+      CacheWithData(batch, maxSizeInBytes, bufferSize)
     else
       this
   }
 
   def get(offset: Long): Option[CastleMessageBatch] = None
+
 }
