@@ -7,7 +7,7 @@ import akka.testkit.TestProbe
 import com.box.castle.batch.CastleMessageBatch
 import com.box.castle.router.RouterConfig
 import com.box.castle.router.kafkadispatcher.KafkaDispatcherRef
-import com.box.castle.router.kafkadispatcher.messages.{CommitConsumerOffsetKafkaResponse, DispatchFetchDataToKafka, FetchDataKafkaResponse}
+import com.box.castle.router.kafkadispatcher.messages.{CommitConsumerOffsetKafkaResponse, DispatchFetchDataToKafka, FetchDataKafkaResponse, UnknownTopicPartition}
 import com.box.castle.router.messages.{RefreshBrokersAndLeaders, OffsetAndMetadata, FetchData}
 import com.box.castle.router.metrics.Metrics
 import com.box.castle.router.mock.{MockMetricsLogger, MockBatchTools, MockActorTools}
@@ -221,7 +221,7 @@ class FetchDataProcessorTest extends Specification with Mockito with MockActorTo
       val requests = Map(topicAndPartitionOriginal -> ((requestedOffset.toLong, Set(requesterInfoOriginal))))
 
       fdp.processResponse(FetchDataKafkaResponse(fetchResponse, requests))
-      there was one(kafkaDispatcher).!(RefreshBrokersAndLeaders(List.empty))
+      there was one(kafkaDispatcher).!(UnknownTopicPartition(topicAndPartitionOriginal))
     }
   }
 }

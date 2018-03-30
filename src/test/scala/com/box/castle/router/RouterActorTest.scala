@@ -76,7 +76,8 @@ class RouterActorTest extends Specification with Mockito with MockBatchTools
   val defaultMockTopicMetadata: Map[Int, TopicMetadataResponse] =
     Map(1 -> TopicMetadataResponse(Seq(unknownErrorCodeForTopic), 1),
         2 -> TopicMetadataResponse(Seq(unknownErrorCodeForMetadata), 2),
-        3 -> TopicMetadataResponse(Seq(topicAndPartitionMetadata, topicAndPartition2Metadata), 3))
+        3 -> TopicMetadataResponse(Seq(topicAndPartitionMetadata, topicAndPartition2Metadata), 3),
+        4 -> TopicMetadataResponse(Seq(topicAndPartitionMetadata, topicAndPartition2Metadata), 4))
 
   val emptyMockTopicMetadata = Map.empty[Int, TopicMetadataResponse]
 

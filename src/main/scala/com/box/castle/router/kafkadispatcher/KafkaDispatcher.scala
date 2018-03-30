@@ -99,6 +99,10 @@ class KafkaDispatcher(boxSimpleConsumerFactory: CastleSimpleConsumerFactory,
         log.error(s"Broker is unreachable: $broker due to: ${t.getMessage}", t)
         context.parent ! BrokerUnreachable(broker)
       }
+      case UnknownTopicPartition(topicAndPartition) => {
+        log.error(s"Queue processor encountered unknown topic partition for: ${topicAndPartition}")
+        context.parent ! RefreshBrokersAndLeaders(List.empty)
+      }
       case UnexpectedFailure(t) => {
         log.error(s"KafkaDispatcher encountered an unexpected failure: ${t.getMessage}", t)
         metricsLogger.count(Components.KafkaDispatcher,

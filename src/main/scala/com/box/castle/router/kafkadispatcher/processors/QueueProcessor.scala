@@ -7,7 +7,7 @@ import com.box.castle.consumer.offsetmetadatamanager.OffsetMetadataManagerErrorC
 import com.box.castle.metrics.MetricsLogger
 import com.box.castle.router.exceptions.RouterFatalException
 import com.box.castle.router.kafkadispatcher.KafkaDispatcherRef
-import com.box.castle.router.kafkadispatcher.messages.{DispatchToKafka, KafkaBrokerUnreachable, KafkaResponse, UnexpectedFailure}
+import com.box.castle.router.kafkadispatcher.messages.{DispatchToKafka, KafkaBrokerUnreachable, KafkaResponse, UnexpectedFailure, UnknownTopicPartition}
 import com.box.castle.router.messages.{RefreshBrokersAndLeaders, RouterResult}
 import com.box.castle.retry.RetryableFuture
 import com.box.castle.retry.strategies.TruncatedBinaryExponentialBackoffStrategy
@@ -62,7 +62,7 @@ abstract class QueueProcessor[T <: DispatchToKafka, T2 <: KafkaResponse]
       s"This is normal if the replica changes are happening in Kafka, however if you continue to see this message " +
       s"repeatedly, it may mean one of the clients of the Router is mis-configured and is attempting to get data for " +
       s"a topic and partition that does not exist.  Refreshing brokers and leaders.")
-    kafkaDispatcher ! RefreshBrokersAndLeaders(List.empty)
+    kafkaDispatcher ! UnknownTopicPartition(topicAndPartition)
     count(Metrics.UnknownTopicOrPartition)
   }
 
