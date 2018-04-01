@@ -100,7 +100,7 @@ class KafkaDispatcher(boxSimpleConsumerFactory: CastleSimpleConsumerFactory,
         context.parent ! BrokerUnreachable(broker)
       }
       case UnknownTopicPartition(topicAndPartition) => {
-        log.error(s"Queue processor encountered unknown topic partition for: ${topicAndPartition}")
+        log.error(s"KafkaDispatcher encountered unknown topic partition for: ${topicAndPartition}")
         context.parent ! RefreshBrokersAndLeaders(List.empty)
       }
       case UnexpectedFailure(t) => {

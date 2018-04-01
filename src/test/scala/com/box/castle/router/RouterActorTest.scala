@@ -2,11 +2,11 @@ package com.box.castle.router
 
 import java.util.concurrent.{Semaphore, TimeUnit}
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorSystem, Props}
 import akka.testkit.{TestActorRef, TestProbe}
 import com.box.castle.batch.CastleMessageBatch
 import com.box.castle.metrics.MetricsLogger
-import com.box.castle.router.kafkadispatcher.KafkaDispatcherFactory
+import com.box.castle.router.kafkadispatcher.{KafkaDispatcher, KafkaDispatcherFactory}
 import com.box.castle.router.messages._
 import com.box.castle.router.metrics.Metrics
 import com.box.castle.router.mock._
@@ -452,6 +452,47 @@ class RouterActorTest extends Specification with Mockito with MockBatchTools
       mockMetricsLogger.getCountFor(Metrics.AvoidedFetches) must_== 3
 
       mockBoxSimpleConsumer.getNumErrors must_== 0
+    }
+
+    "triggers a RefreshBrokersAndLeaders request when a FetchData request encounters unknown topics" in new actorSystem {
+      val mockMetricsLogger = new MockMetricsLogger()
+
+      val consumer = mock[CastleSimpleConsumer]
+      consumer.bufferSize returns 498452
+
+      val mockTopicMetadata: Map[Int, TopicMetadataResponse] = Map(
+        1 -> TopicMetadataResponse(Seq(topicAndPartitionMetadata, topicAndPartition2Metadata), 1),
+        2 -> TopicMetadataResponse(Seq(topicAndPartitionMetadata, topicAndPartition2Metadata), 2)
+      )
+
+      val mockFetchData = Map(
+        1 -> Map(defaultTopicAndPartition -> Map(offset -> errorFetchResponse(err.UnknownTopicOrPartitionCode)))
+      )
+
+      val mockBoxSimpleConsumer = new MockCastleSimpleConsumer(timeout, defaultBroker1, mockTopicMetadata, mockFetchData)
+
+      val broker = mockBoxSimpleConsumer.broker
+      val boxSimpleConsumerFactory = new MockCastleSimpleConsumerFactory(Map(broker -> mockBoxSimpleConsumer))
+      val kafkaDispatcherFactory = new KafkaDispatcherFactory(boxSimpleConsumerFactory, mockMetricsLogger)
+      val kafkaDispatcherProxyPoolFactory = new KafkaDispatcherProxyPoolFactory(kafkaDispatcherFactory, 1024 * 1024, mockMetricsLogger)
+      val routerActorFactory = new RouterFactory(kafkaDispatcherProxyPoolFactory, Set(broker), mockMetricsLogger)
+
+      val routerActorProbe = TestProbe()
+      val routerProps = Props(new Router(kafkaDispatcherProxyPoolFactory, Set(broker), mockMetricsLogger) {
+        override def free = {
+          val testCasePartialFn: Receive = {
+            case internalRouterMessage: InternalRouterMessage => routerActorProbe.ref ! internalRouterMessage
+          }
+          testCasePartialFn orElse super.free
+        }
+      })
+      val routerActor = TestActorRef[Router](routerProps, routerActorProbe.ref, "router")
+
+      // Send router FetchData message
+      routerActor ! FetchData(defaultTopicAndPartition, offset)
+
+      // Verify RefreshBrokersAndLeaders message is triggered
+      routerActorProbe.expectMsg(timeout, RefreshBrokersAndLeaders(List.empty))
     }
   }
 

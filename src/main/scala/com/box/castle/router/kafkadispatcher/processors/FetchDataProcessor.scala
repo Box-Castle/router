@@ -6,7 +6,7 @@ import com.box.castle.router.RouterConfig
 import com.box.castle.router.kafkadispatcher.cache.FetchDataProcessorCache
 import com.box.castle.router.kafkadispatcher.messages.{DispatchFetchDataToKafka, FetchDataKafkaResponse, LeaderNotAvailable}
 import com.box.castle.router.kafkadispatcher.{KafkaDispatcherRef, RequestQueue}
-import com.box.castle.router.messages.{RefreshBrokersAndLeaders, FetchData}
+import com.box.castle.router.messages.FetchData
 import com.box.castle.consumer.CastleSimpleConsumer
 import com.box.castle.router.metrics.{TagNames, Metrics, Components}
 import org.slf4s.Logging
