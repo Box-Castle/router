@@ -3,7 +3,7 @@ package com.box.castle.router.kafkadispatcher.processors
 import akka.testkit.TestProbe
 import com.box.castle.collections.immutable.LinkedHashMap
 import com.box.castle.router.kafkadispatcher.KafkaDispatcherRef
-import com.box.castle.router.kafkadispatcher.messages.{CommitConsumerOffsetKafkaResponse, LeaderNotAvailable, DispatchCommitConsumerOffsetToKafka}
+import com.box.castle.router.kafkadispatcher.messages.{CommitConsumerOffsetKafkaResponse, LeaderNotAvailable, DispatchCommitConsumerOffsetToKafka, UnknownTopicPartition}
 import com.box.castle.router.messages.{RefreshBrokersAndLeaders, OffsetAndMetadata, CommitConsumerOffset}
 import com.box.castle.consumer.{ConsumerId, CastleSimpleConsumer}
 import com.box.castle.router.mock.{MockActorTools, MockMetricsLogger}
@@ -154,7 +154,7 @@ class CommitConsumerOffsetProcessorTest extends Specification with Mockito with 
         offsetCommitResponse, Map(topicAndPartition -> (OffsetAndMetadata(43, None), requesterInfo)))
 
       processor.processResponse(response)
-      there was one(kafkaDispatcher).!(RefreshBrokersAndLeaders(List.empty))
+      there was one(kafkaDispatcher).!(UnknownTopicPartition(topicAndPartition))
     }
   }
 }

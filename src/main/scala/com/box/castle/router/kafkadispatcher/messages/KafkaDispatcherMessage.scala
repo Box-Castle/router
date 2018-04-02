@@ -79,3 +79,5 @@ private[kafkadispatcher] case class FetchOffsetKafkaResponse(response: OffsetRes
 
 private[kafkadispatcher] case class InternalTopicMetadataResponse(response: TopicMetadataResponse) extends KafkaResponse
 
+private[kafkadispatcher] case class UnknownTopicPartition(topicAndPartition: TopicAndPartition) extends KafkaDispatcherCommonMessage
+
